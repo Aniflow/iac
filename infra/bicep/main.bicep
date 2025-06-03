@@ -1,123 +1,87 @@
-@description('Name of the AKS cluster')
-param aksClusterName string = 'myAksCluster'
+targetScope = 'subscription'
 
-@description('AKS Node VM size')
-param nodeVmSize string = 'Standard_DS2_v2'
+param environmentName string
+param location string
+param dtap string
 
-@description('Number of nodes in AKS node pool')
-param nodeCount int = 1
+@secure()
+param mysqlAdminUsername string
 
-@description('Name of the ACR instance')
-param acrName string = 'myAcrRegistry'
-
-@description('MySQL server admin username')
-param mysqlAdminUsername string = 'mysqladmin'
-
-@description('MySQL admin password (secure string)')
 @secure()
 param mysqlAdminPassword string
 
-@description('Location for all resources')
-param location string = resourceGroup().location
+var dtapInitial = string(first(toLower(dtap)))
+var abbrs = loadJsonContent('abbreviations.json')
 
-
-resource aks 'Microsoft.ContainerService/managedClusters@2023-03-01' = {
-  name: aksClusterName
+resource resourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = {
+  name: '${abbrs.resourcesResourceGroups}${environmentName}-${dtapInitial}'
   location: location
-  properties: {
-    kubernetesVersion: ''
-    dnsPrefix: '${aksClusterName}-dns'
-    agentPoolProfiles: [
-      {
-        name: 'agentpool'
-        count: nodeCount
-        vmSize: nodeVmSize
-        maxPods: 110
-        osType: 'Linux'
-        type: 'VirtualMachineScaleSets'
-        mode: 'System'
-      }
-    ]
-    linuxProfile: {
-      adminUsername: 'azureuser'
-      ssh: {
-        publicKeys: [
-          {
-            keyData: 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCy...'
-          }
-        ]
-      }
-    }
-    enableRBAC: true
-    networkProfile: {
-      networkPlugin: 'azure'
-      loadBalancerSku: 'standard'
-      outboundType: 'loadBalancer'
-    }
+}
+
+module containerRegistry 'acr/container-registry.bicep' = {
+  name: 'ContainerRegistryDeployment'
+  scope: resourceGroup
+  params: {
+    acrName: '${abbrs.containerRegistryRegistries}-${environmentName}-${dtapInitial}'
   }
 }
 
-
-resource acr 'Microsoft.ContainerRegistry/registries@2023-01-01-preview' = {
-  name: acrName
-  location: location
-  sku: {
-    name: 'Basic'
-  }
-  properties: {
-    adminUserEnabled: true
+module assignPullRole 'security/roles.bicep' = {
+  name: 'AssignAcrPullRole'
+  scope: resourceGroup
+  params: {
+    acrName: containerRegistry.name
+    aksName: kubernetesService.name
   }
 }
 
-
-resource mysqlUserService 'Microsoft.DBforMySQL/flexibleServers@2023-03-01' = {
-  name: '${aksClusterName}-mysql-user'
-  location: location
-  sku: {
-    name: 'Basic_B1s'
-    tier: 'Basic'
-    capacity: 1
+module animeMysql 'mysql/mysql-database.bicep' = {
+  name: 'animeDbDeployment'
+  scope: resourceGroup
+  params: {
+    dbName: '${abbrs.sqlServersDatabases}-${environmentName}-animedb-${dtapInitial}'
+    mysqlAdminUsername: mysqlAdminUsername
+    mysqlAdminPassword: mysqlAdminPassword 
   }
-  properties: {
-    version: '8.0'
-    administratorLogin: mysqlAdminUsername
-    administratorLoginPassword: mysqlAdminPassword
-    storage: {
-      storageSizeGB: 32
-    }
-    highAvailability: {
-      mode: 'Disabled'
-    }
+}
+
+module userMysql 'mysql/mysql-database.bicep' = {
+  name: 'userDbDeployment'
+  scope: resourceGroup
+  params: {
+    dbName: '${abbrs.sqlServersDatabases}-${environmentName}-userdb-${dtapInitial}'
+    mysqlAdminUsername: mysqlAdminUsername 
+    mysqlAdminPassword: mysqlAdminPassword
+  }
+}
+
+module logAnalytics 'monitoring/log-analytics.bicep' = {
+  name: 'LogAnalyticsDeployment'
+  scope: resourceGroup
+  params: {
+    logAnalyticsName: '${abbrs.logAnalyticsWorkspace}${environmentName}-${dtapInitial}'
+  }
+}
+
+module appInsights 'monitoring/app-insights.bicep' = {
+  name: 'appInsightsDeployment'
+  scope: resourceGroup
+  params: {
+    appInsightsName: '${abbrs.operationalInsightsWorkspaces}${environmentName}-${dtapInitial}'
+    LogAnalyticsWorkspaceId: logAnalytics.outputs.logAnalyticsId
+  }
+}
+
+module kubernetesService 'aks/azure-k8s.bicep' = {
+  name: 'AKSDeployment'
+  scope: resourceGroup
+  params: {
+    aksName: '${abbrs.containerServiceManagedClusters}${environmentName}-${dtapInitial}'
+    logAnalyticsWorkspaceId: logAnalytics.outputs.logAnalyticsId 
   }
   dependsOn: [
-    aks
+    containerRegistry
+    animeMysql
+    userMysql
   ]
 }
-
-resource mysqlAnimeService 'Microsoft.DBforMySQL/flexibleServers@2023-03-01' = {
-  name: '${aksClusterName}-mysql-anime'
-  location: location
-  sku: {
-    name: 'Basic_B1s'
-    tier: 'Basic'
-    capacity: 1
-  }
-  properties: {
-    version: '8.0'
-    administratorLogin: mysqlAdminUsername
-    administratorLoginPassword: mysqlAdminPassword
-    storage: {
-      storageSizeGB: 32
-    }
-    highAvailability: {
-      mode: 'Disabled'
-    }
-  }
-  dependsOn: [
-    aks
-  ]
-}
-
-
-output aksClusterName string = aks.name
-output acrLoginServer string = acr.properties.loginServer

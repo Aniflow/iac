@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
+
+name: Aniflow
+
+infra:
+  path: ./infra/bicep
+  parameters:
+    mySqlAdminUsername: ${AZURE_MYSQL_ADMIN_USERNAME}
+    mySqlAdminPassword: ${AZURE_MYSQL_ADMIN_PASSWORD}
