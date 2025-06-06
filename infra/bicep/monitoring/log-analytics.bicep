@@ -2,12 +2,12 @@ param logAnalyticsName string
 param location string = resourceGroup().location
 
 
-resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2025-02-01' = {
   name: logAnalyticsName
   location: location
   properties: {
     sku: {
-      name: 'Free' 
+      name: 'PerGB2018' 
     }
   }
 }

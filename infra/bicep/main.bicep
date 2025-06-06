@@ -13,33 +13,22 @@ param mysqlAdminPassword string
 var dtapInitial = string(first(toLower(dtap)))
 var abbrs = loadJsonContent('abbreviations.json')
 
-resource resourceGroup 'Microsoft.Resources/resourceGroups@2022-09-01' = {
+var animeDbName = string('${abbrs.sqlServersDatabases}${environmentName}-animedb-${dtapInitial}')
+var userDbName = string('${abbrs.sqlServersDatabases}${environmentName}-userdb-${dtapInitial}')
+var logAnalyticsName = string('${abbrs.logAnalyticsWorkspace}${environmentName}-${dtapInitial}')
+var appInsightsName = string('${abbrs.operationalInsightsWorkspaces}${environmentName}-${dtapInitial}')
+var aksClusterName = string('${abbrs.containerServiceManagedClusters}${environmentName}-${dtapInitial}')
+
+resource resourceGroup 'Microsoft.Resources/resourceGroups@2025-04-01' = {
   name: '${abbrs.resourcesResourceGroups}${environmentName}-${dtapInitial}'
   location: location
-}
-
-module containerRegistry 'acr/container-registry.bicep' = {
-  name: 'ContainerRegistryDeployment'
-  scope: resourceGroup
-  params: {
-    acrName: '${abbrs.containerRegistryRegistries}-${environmentName}-${dtapInitial}'
-  }
-}
-
-module assignPullRole 'security/roles.bicep' = {
-  name: 'AssignAcrPullRole'
-  scope: resourceGroup
-  params: {
-    acrName: containerRegistry.name
-    aksName: kubernetesService.name
-  }
 }
 
 module animeMysql 'mysql/mysql-database.bicep' = {
   name: 'animeDbDeployment'
   scope: resourceGroup
   params: {
-    dbName: '${abbrs.sqlServersDatabases}-${environmentName}-animedb-${dtapInitial}'
+    dbName: animeDbName 
     mysqlAdminUsername: mysqlAdminUsername
     mysqlAdminPassword: mysqlAdminPassword 
   }
@@ -49,7 +38,7 @@ module userMysql 'mysql/mysql-database.bicep' = {
   name: 'userDbDeployment'
   scope: resourceGroup
   params: {
-    dbName: '${abbrs.sqlServersDatabases}-${environmentName}-userdb-${dtapInitial}'
+    dbName: userDbName 
     mysqlAdminUsername: mysqlAdminUsername 
     mysqlAdminPassword: mysqlAdminPassword
   }
@@ -59,7 +48,7 @@ module logAnalytics 'monitoring/log-analytics.bicep' = {
   name: 'LogAnalyticsDeployment'
   scope: resourceGroup
   params: {
-    logAnalyticsName: '${abbrs.logAnalyticsWorkspace}${environmentName}-${dtapInitial}'
+    logAnalyticsName: logAnalyticsName
   }
 }
 
@@ -67,7 +56,7 @@ module appInsights 'monitoring/app-insights.bicep' = {
   name: 'appInsightsDeployment'
   scope: resourceGroup
   params: {
-    appInsightsName: '${abbrs.operationalInsightsWorkspaces}${environmentName}-${dtapInitial}'
+    appInsightsName: appInsightsName 
     LogAnalyticsWorkspaceId: logAnalytics.outputs.logAnalyticsId
   }
 }
@@ -76,12 +65,7 @@ module kubernetesService 'aks/azure-k8s.bicep' = {
   name: 'AKSDeployment'
   scope: resourceGroup
   params: {
-    aksName: '${abbrs.containerServiceManagedClusters}${environmentName}-${dtapInitial}'
+    aksName: aksClusterName 
     logAnalyticsWorkspaceId: logAnalytics.outputs.logAnalyticsId 
   }
-  dependsOn: [
-    containerRegistry
-    animeMysql
-    userMysql
-  ]
 }

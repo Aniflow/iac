@@ -2,11 +2,11 @@ param aksName string
 param logAnalyticsWorkspaceId string
 param location string = resourceGroup().location
 
-resource aks 'Microsoft.ContainerService/managedClusters@2023-01-01' = {
+resource aks 'Microsoft.ContainerService/managedClusters@2025-03-01' = {
   name: aksName
   location: location
   sku: {
-    name: 'Basic'
+    name: 'Base'
     tier: 'Free'
   }
   identity: {
@@ -23,7 +23,7 @@ resource aks 'Microsoft.ContainerService/managedClusters@2023-01-01' = {
         minCount: 1
         maxCount: 3
         enableAutoScaling: true
-        vmSize: 'Standard_DS2_v2'
+        vmSize: 'Standard_D2s_v3'
         osType: 'Linux'
         mode: 'System'
         type: 'VirtualMachineScaleSets'
@@ -33,10 +33,6 @@ resource aks 'Microsoft.ContainerService/managedClusters@2023-01-01' = {
     addonProfiles: {
       ingressApplicationGateway: {
         enabled: false
-      }
-      ingress: {
-        enabled: true
-        config: {}
       }
       omsAgent: {
         enabled: true
