@@ -1,0 +1,31 @@
+name: Kafka deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "k8s/**"
+
+jobs:
+  kafka:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: rg-aniflow-p
+          cluster-name: aks-aniflow-p
+
+      - name: Deploy to AKS
+        run: |
+          kubectl apply -f k8s/
